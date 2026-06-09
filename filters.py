@@ -9,36 +9,28 @@ DATA_PATH = "data/household_power_consumption.txt"
 def download_dataset():
     """Download dataset from Google Drive if not present locally."""
     if not os.path.exists(DATA_PATH):
-        print("Dataset not found locally. Downloading from Google Drive...")
+        print("Downloading dataset from Google Drive...")
         os.makedirs("data", exist_ok=True)
-        url = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
-        
-        # Use requests to handle large file download
+
         import requests
-        session = requests.Session()
-        response = session.get(url, stream=True)
-        
-        # Handle Google Drive virus scan warning for large files
-        token = None
-        for key, value in response.cookies.items():
-            if key.startswith("download_warning"):
-                token = value
-                break
+        # Use the direct download URL that bypasses virus warning
+        url = "https://drive.usercontent.google.com/download"
+        params = {
+            "id":      FILE_ID,
+            "export":  "download",
+            "confirm": "t"
+        }
 
-        if token:
-            response = session.get(
-                url, params={"confirm": token}, stream=True
-            )
+        response = requests.get(url, params=params, stream=True)
 
-        # Save file
         with open(DATA_PATH, "wb") as f:
             for chunk in response.iter_content(chunk_size=32768):
                 if chunk:
                     f.write(chunk)
+
         print("Download complete!")
     else:
         print("Dataset found locally.")
-
 
 def load_data(filepath):
 
@@ -51,15 +43,16 @@ def load_data(filepath):
         sep=";",
         na_values="?",
     )
-
-    # Combine Date and Time into one column
-    df["Datetime"] = pd.to_datetime(
-        df["Date"] + " " + df["Time"],
-        dayfirst=True
-    )
-
-    # Drop old separate columns
-    df.drop(columns=["Date", "Time"], inplace=True)
+# combine date and time if they exist as separate columns
+    if "Date" in df.columns and "Time" in df.columns:
+        df["Datetime"] = pd.to_datetime(
+            df["Date"] + " " + df["Time"],
+            dayfirst=True
+        )
+        df.drop(columns=["Date", "Time"], inplace=True)
+    elif "Datetime" not in df.columns:
+        #try first column as datetime
+        df["Datetime"] = pd.to_datetime(df.iloc[:, 0], dayfirst=True)
 
     # Fix missing values
     cols = [
