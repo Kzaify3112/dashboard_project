@@ -1,22 +1,64 @@
+import os
 import pandas as pd
 import numpy as np
 
+# ── Dataset path & auto-download ───────────────────────
+FILE_ID   = "1g7CP9-eYivJHRXvJePwzVPkm9DnNFH-R"
+DATA_PATH = "data/household_power_consumption.txt"
+
+def download_dataset():
+    """Download dataset from Google Drive if not present locally."""
+    if not os.path.exists(DATA_PATH):
+        print("Dataset not found locally. Downloading from Google Drive...")
+        os.makedirs("data", exist_ok=True)
+        url = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
+        
+        # Use requests to handle large file download
+        import requests
+        session = requests.Session()
+        response = session.get(url, stream=True)
+        
+        # Handle Google Drive virus scan warning for large files
+        token = None
+        for key, value in response.cookies.items():
+            if key.startswith("download_warning"):
+                token = value
+                break
+
+        if token:
+            response = session.get(
+                url, params={"confirm": token}, stream=True
+            )
+
+        # Save file
+        with open(DATA_PATH, "wb") as f:
+            for chunk in response.iter_content(chunk_size=32768):
+                if chunk:
+                    f.write(chunk)
+        print("Download complete!")
+    else:
+        print("Dataset found locally.")
+
+
 def load_data(filepath):
 
-    # Read the file WITHOUT parse_dates
+    # Download if not exists
+    download_dataset()
+
+    # Read the file
     df = pd.read_csv(
         filepath,
         sep=";",
         na_values="?",
     )
 
-    # Combine Date and Time into one column manually
+    # Combine Date and Time into one column
     df["Datetime"] = pd.to_datetime(
         df["Date"] + " " + df["Time"],
         dayfirst=True
     )
 
-    # Drop the old separate Date and Time columns
+    # Drop old separate columns
     df.drop(columns=["Date", "Time"], inplace=True)
 
     # Fix missing values
@@ -52,7 +94,6 @@ def apply_filters(df, year_filter=None, season_filter=None,
 
     filtered = df.copy()
 
-    # Date range filter — NEW
     if date_range and len(date_range) == 2:
         start, end = date_range
         filtered = filtered[
