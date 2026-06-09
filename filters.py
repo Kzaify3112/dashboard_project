@@ -2,6 +2,9 @@ import os
 import pandas as pd
 import numpy as np
 
+# Check if running on Render cloud
+is_cloud = os.environ.get("RENDER", False)
+
 # ── Dataset path & auto-download ───────────────────────
 FILE_ID   = "1g7CP9-eYivJHRXvJePwzVPkm9DnNFH-R"
 DATA_PATH = "data/household_power_consumption.txt"
@@ -13,7 +16,6 @@ def download_dataset():
         os.makedirs("data", exist_ok=True)
 
         import requests
-        # Use the direct download URL that bypasses virus warning
         url = "https://drive.usercontent.google.com/download"
         params = {
             "id":      FILE_ID,
@@ -32,18 +34,21 @@ def download_dataset():
     else:
         print("Dataset found locally.")
 
+
 def load_data(filepath):
 
     # Download if not exists
     download_dataset()
 
-    # Read the file
+    # Read the file — sample on cloud to save RAM
     df = pd.read_csv(
         filepath,
         sep=";",
         na_values="?",
+        nrows=200000 if is_cloud else None
     )
-# combine date and time if they exist as separate columns
+
+    # Combine Date and Time if they exist as separate columns
     if "Date" in df.columns and "Time" in df.columns:
         df["Datetime"] = pd.to_datetime(
             df["Date"] + " " + df["Time"],
@@ -51,7 +56,6 @@ def load_data(filepath):
         )
         df.drop(columns=["Date", "Time"], inplace=True)
     elif "Datetime" not in df.columns:
-        #try first column as datetime
         df["Datetime"] = pd.to_datetime(df.iloc[:, 0], dayfirst=True)
 
     # Fix missing values
